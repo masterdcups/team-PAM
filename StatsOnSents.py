@@ -116,7 +116,21 @@ def regroupSimple(l:list, window = 120 ):
     for e in l:
         pos = window * round(   e[1] / window)
         res[pos] = res.get(pos,0) + e[2]
-    return sorted(res, key=res.__getitem__)
+        
+    return sorted(res.items(), key=lambda t: t[0])
+
+""" Named Entities extraction"""
+def docToNamesEntities(peoples:list,speach:list)-> list:
+    res = []
+    for elem in speach:
+        if elem[0] in peoples:
+            res.extend( list(map(lambda x : (elem[0],elem[1],x) ,elem[3].ents)))
+    return res
+
+def filterNamesEntities(enList:list,types:list)->list:
+    return list(filter(lambda x: x[2].label_ in types , enList))
+    
+    
     
     
 
@@ -202,7 +216,7 @@ t = time.time()
 nlp = spacy.load("en_core_web_lg") 
 print("nlp done", time.time() -t)
 
-meetings = ['a']
+meetings = ['b']
 dss = docSpacySentPretraitement(meetings)
 peoples =  { }
 for m in meetings:
@@ -216,7 +230,12 @@ print(r)
 
 """
 l = ['A','B','C','D']
-print(regroupSimple( interogationCounter(l, dss['a']["meeting"])))
+print(regroupSimple( interogationCounter(l, dss['b']["meeting"])))
+en = docToNamesEntities(l, dss['b']["meeting"])
+print('date',filterNamesEntities(en,['DATE']))
+print('localisation and org',filterNamesEntities(en,['GPE','ORG']))
+print('person ',filterNamesEntities(en,['PERSON']))
+
 """
 for e in ['a','b','c','d']:
     print(e)
