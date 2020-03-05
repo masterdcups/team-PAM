@@ -13,7 +13,7 @@ import localisationAndParam as locp
 
 segmentLoc = locp.__groundT__ / "segments"
 wordsLoc = locp.__groundT__ / "words"
-nlp = spacy.load("en_core_web_lg") 
+
 """ Extraction"""
 
 def onePortionExtractor(part, speaker ):
@@ -40,7 +40,7 @@ def onePortionExtractor(part, speaker ):
             cpt += 1
     return (sentenses)
 
-def onePortionExtractorBis(part, speaker ):
+def onePortionExtractorBis(part, speaker,meeting = locp.__Meeting ):
     """
     segmentName = Meeting + part  + "." + speaker + ".segments.xml"
     print(segmentName)
@@ -48,7 +48,7 @@ def onePortionExtractorBis(part, speaker ):
     """
     cpt = 0
     sentenses = {}
-    wordsName = locp.__Meeting + part  + "." + speaker + ".words.xml"
+    wordsName = meeting + part  + "." + speaker + ".words.xml"
     wordsTree = etree.parse(str(wordsLoc / wordsName))
     s = ""
     for w in wordsTree.xpath("w"):
@@ -59,10 +59,10 @@ def onePortionExtractorBis(part, speaker ):
         cpt += 1
     return (sentenses)
 
-def partExtractor(partName,speakers):
+def partExtractor(partName,speakers, meeting = locp.__Meeting):
     part = {}
     for spker in speakers:        
-        part[spker] = onePortionExtractorBis(partName,spker)
+        part[spker] = onePortionExtractorBis(partName,spker,meeting)
     return part
 
 def sentensesAllSort(part):
@@ -131,8 +131,9 @@ def dialogue(ordSP,minTime):
     return monologues
 """
 """sementics"""
-nlp = spacy.load("en_core_web_lg") 
+
 def querryIdent(grSents):
+    nlp = spacy.load("en_core_web_lg") 
     qw = [[],[]]
     for sent in grSents:
         docSent = nlp(sent[3])
@@ -165,6 +166,7 @@ def speachToSent(sp):
     sents= []
 
     s = ""
+    nlp = spacy.load("en_core_web_lg")
     doc = nlp(sp)
     for token in doc:
         s += token.text + " "
@@ -175,16 +177,16 @@ def speachToSent(sp):
         sents.append(s)
     return sents
          
-def organisedSpeachTotalPipe(partOfSpeach = "a"):
-    return groupSpeach(sentensesAllSort(partExtractor(partOfSpeach,locp.__seapkers)))
+def organisedSpeachTotalPipe(partOfSpeach = "a", meeting = locp.__Meeting):
+    return groupSpeach(sentensesAllSort(partExtractor(partOfSpeach,locp.__seapkers, meeting)))
         
             
             
-
+"""
 p = partExtractor("a",locp.__seapkers)
 o = sentensesAllSort(p)
 m = groupSpeach(o)
-"""
+
 print(detectMonologue(m,100))
 res = querryIdent(m)
 print(res[0])
