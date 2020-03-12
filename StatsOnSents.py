@@ -373,6 +373,11 @@ def dssToTrainCorpusDebutFin(dssList,size):
 
 def multipleDSS():
     meetings = ['a','b','c','d']
+    submeet1 = ["IS1000","IS1001","IS1002"]
+    BigM = []
+    for i in range (0,10):
+        BigM.append(IS100 +str(i))
+        
     submeet = ["IS1000","IS1001","IS1002","IS1003","IS1004","IS1005","IS1006","IS1007","IS1008","IS1009"]
     dssl= []
     for i in submeet:
@@ -385,19 +390,19 @@ def testFin():
     x1,x2,y = dssToTrainCorpusDebutFin(d,5*60)
     print("type freq")
     X_train, X_test, y_train, y_test = train_test_split(x1, y, test_size=0.3, random_state=42)
-    model = RandomForestClassifier()
+    model = RandomForestClassifier(class_weight={1:0.15,2:0.15,0:0.7})
     model.fit(X_train, y_train)
     y_predict = model.predict(X_test)
     
-    accuracy_score(y_test.values, y_predict)
+    print(accuracy_score(y_test, y_predict))
     
     print("verb")
     X_train, X_test, y_train, y_test = train_test_split(x1, y, test_size=0.3, random_state=42)
-    model = RandomForestClassifier()
+    model = RandomForestClassifier(class_weight={1:0.15,2:0.15,0:0.7})
     model.fit(X_train, y_train)
     y_predict = model.predict(X_test)
     
-    accuracy_score(y_test.values, y_predict)
+    print(accuracy_score(y_test, y_predict))
 
                     
     
