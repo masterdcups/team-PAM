@@ -4,6 +4,8 @@ Created on Fri Jan 17 08:31:05 2020
 
 @author: Lenovo T420s
 """
+
+import math
 import spacy
 import numpy as np
 from numpy import dot
@@ -12,12 +14,14 @@ from spacy.matcher import Matcher
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score
+from sklearn.cluster import KMeans
 
 
 import buildSenten as build
 
 
 nlp = spacy.load("en_core_web_lg") 
+peopleInMeeting = ['A','B','C','D']
 
 def similarity1(v1,v2):
     return (dot(v1, v2)/(norm(v1)*norm(v2)))
@@ -25,11 +29,11 @@ def similarity1(v1,v2):
 def Manhattan(v1,v2):
     return sum(abs(v2-v1))
 
-def preparationTokenSpCy(totalSpeachGr):
-    def  traitment1(a):
-        return (a[0],a[1],a[2], nlp(a[3]))
-    return list(map(traitment1,totalSpeachGr ))  
 
+def meetingTime(meeting,begin,end):
+    def ftemps(x):
+        return (x[1]>begin and x[2]<end)
+    return filter(ftemps,meeting)
 
 
 def sentCount(doc)-> int: 
@@ -89,27 +93,10 @@ def typeOfWordFCount( doc)->dict:
     return res 
 
 
-def listOfnameEntity(doc)-> list:
-    """TODO
-    res = { }
-    for elem in doc:
-       if elem.pos_ in res.keys():
-           res[elem.pos_] += 1
-       else:
-           res[elem.pos_] = 1
-           """
-    return []
 
 
 
-def extractionEntiteNome(peoples:list,speach: list)-> list:
-    res = []
-    for elem in speach:
-        if elem[0] in peoples:
-            res.append(typeOfWordFCount(elem[3]))
-    return lemmeCounterFusion(res)
 
-    return []
 
 """ interotion count"""
 def interCount(doc)->int:
@@ -137,6 +124,17 @@ def regroupSimple(l:list, window = 120 ):
     return sorted(res.items(), key=lambda t: t[0])
 
 """ Named Entities extraction"""
+
+def extractionEntiteNome(peoples:list,speach: list)-> list:
+    res = []
+    for elem in speach:
+        if elem[0] in peoples:
+            res.append(typeOfWordFCount(elem[3]))
+    return lemmeCounterFusion(res)
+
+    return []
+
+
 def docToNamesEntities(peoples:list,speach:list)-> list:
     res = []
     for elem in speach:
@@ -185,6 +183,64 @@ def docToVerb(peoples:list,speach:list)-> list:
     return res 
 
 
+"""Verb"""
+def addPeoplesVerbToDSS(peoples,dss):
+    for m in dss.keys(): 
+        dss[m]["verb"] = { }
+        for i in peoples[m]:
+            r = docToVerb([i], dss[m]["meeting"])
+            dss[m]["verb"][i] = { }
+            for v in r:
+                if v[0] in dss[m]["verb"][i].keys():
+                    dss[m]["verb"][i][v[0]][0] +=1
+                else:
+                    dss[m]["verb"][i][v[0]]=[1,v[1]]                   
+    return dss
+
+def getVerbIDFCorpus(dss):
+    l = { }
+    totaldoc = 0
+    for m in dss.values():
+        verbs = m["verb"]
+        for lv in verbs.values():
+            totaldoc += 1
+            for kv,vVal in lv.items():
+                l[kv] = l.get(kv,0.0) + 1.0
+    for k in l.keys():
+        l[k] = math.log( totaldoc /  l[k])
+    return l
+
+        
+
+def addVerbVectorToDSS(peoples,dss):
+    idf = getVerbIDFCorpus(dss)
+    for m in dss.keys(): 
+        dss[m]["verbVector"] = { }
+        for i in peoples[m]:
+            dss[m]["verbVector"][i] = verbVectorComputationTFIDF(dss[m]['verb'][i],idf)
+    return dss
+    
+def verbVectorComputation(verbs):
+    def  traitment1(a):
+        return (verbs[a][1])
+    v = list(verbs.keys())
+    return np.average( np.array( list(map(traitment1,v )) ),0)
+
+
+def verbVectorComputationTFIDF(verbs,idf):
+    def  vectPond(a):
+        return ((verbs[a][0] * idf[a]) *verbs[a][1]  )
+    def tfidf(a):
+        return (verbs[a][0] * idf[a])
+    vlist = list(verbs.keys())
+    s = sum(map(tfidf,vlist))
+    av = np.average( np.array( list(map(vectPond,vlist )) ),0)
+    return av / s
+
+
+
+
+
 
 def freqtypeExtractor(peoples:list , speach: list )-> dict:
 
@@ -211,6 +267,54 @@ def freqExtractor(peoples:list , speach: list )-> dict:
             res.append(lemmeCount(elem[3]))
     return lemmeCounterFusion(res)
 
+
+
+
+def addFreqToDSS(peoples,dss):
+    for m in dss.keys():
+        dss[m]["freq"] = { }  
+        dss[m]["typeFreq"] = { }
+        for i in peoples[m]:
+            dss[m]["freq"][i] = freqExtractor([i],dss[m]["meeting"])
+            dss[m]["typeFreq"][i] = freqtypeExtractor([i],dss[m]["meeting"])
+    return dss
+
+def addDictionaries(dss ):
+    for m in dss.keys():
+        dss[m]["dictionary"] = freqExtractor(peopleInMeeting,dss[m]["meeting"])
+    return dss 
+
+def getTFIDFGlobal(dss):
+    l = { }
+    totaldoc = 0
+    for m in dss.values():
+        dic = m["dictionary"]
+        totaldoc += 1
+        for kv,vVal in dic.items():
+                l[kv] = l.get(kv,0.0) + 1.0
+    for k in l.keys():
+        l[k] = math.log( totaldoc /  l[k])
+    return l
+
+def getCorpusDictionary(dss):
+     
+    l = []
+    for m in dss.values():
+        l.append(m["dictionary"])
+    return lemmeCounterFusion(l)
+    
+    
+
+
+
+"""Corpus Generator"""
+
+def preparationTokenSpCy(totalSpeachGr):
+    def  traitment1(a):
+        return (a[0],a[1],a[2], nlp(a[3]))
+    return list(map(traitment1,totalSpeachGr ))  
+
+"""old, only for one meeting, prefer multipleDSS in any case"""
 def docSpacySentPretraitement(subMeetings,meeting = ""):
     res = { }
     for sm in subMeetings:
@@ -228,14 +332,46 @@ def docSpacySentPretraitement(subMeetings,meeting = ""):
             print("erreur lors du chargement de " +meeting+ " " + sm )
     return res
 
-def addFreqToDSS(peoples,dss):
-    for m in dss.keys():
-        dss[m]["freq"] = { }  
-        dss[m]["typeFreq"] = { }
-        for i in peoples[m]:
-            dss[m]["freq"][i] = freqExtractor([i],dss[m]["meeting"])
-            dss[m]["typeFreq"][i] = freqtypeExtractor([i],dss[m]["meeting"])
+def AddNewMeeting(dss,meeting,subMeetings):
+    if meeting in (dss.keys()):
+        print("allready in",meeting  )
+    else:
+        for subMeeting in subMeetings:
+            name = meeting + "_" +subMeeting
+            try:
+                orgSpeachT = build.organisedSpeachTotalPipe(subMeeting, meeting)
+                dss[name] = { }
+                dss[name]["meeting"] = preparationTokenSpCy(orgSpeachT)
+            except OSError:
+                print("erreur lors du chargement de " + name )
+            except TypeError:
+                print("erreur lors du chargement de " + name )
     return dss
+
+def  multipleDSS(subMeetings = ['a','b','c','d'],meetings = ["IS1000","IS1001","IS1002"]):
+    dss = { }
+        
+    """submeet = ["IS1000","IS1001","IS1002","IS1003","IS1004","IS1005","IS1006","IS1007","IS1008","IS1009"]"""
+    for i in meetings:
+        print(i)
+        AddNewMeeting(dss, i,subMeetings)
+    return dss
+
+def peoplesgenerator(dss):
+    l = { }
+    for i in dss.keys():
+        l[i] = peopleInMeeting
+    return l
+
+
+def AddAll(dss):
+    pp = peoplesgenerator(dss)
+    addFreqToDSS(pp,dss)
+    addPeoplesVerbToDSS(pp,dss)
+    addVerbVectorToDSS(pp,dss)
+    addDictionaries(dss)
+        
+
 
 def normalisation(vect):
     s = sum(vect)
@@ -293,33 +429,66 @@ def statFreqDSS(dss):
         res.append((m,resp,cpt))
     return res
 
-"""Verb"""
-def addVerbToDSS(peoples,dss):
-    for m in dss.keys(): 
-        dss[m]["verb"] = { }
-        for i in peoples[m]:
-            dss[m]["verb"][i] = docToVerb([i], dss[m]["meeting"])
-    return dss
+"""Vector"""
 
 
-def addVerbVectorToDSS(peoples,dss):
-    for m in dss.keys(): 
-        dss[m]["verbVector"] = { }
-        for i in peoples[m]:
-            dss[m]["verbVector"][i] = verbVectorComputation(dss[m]['verb'][i])
-    return dss
+
+def getMeetingTypeVector(Meeting,  begin = 0, end = 60 * 45):
     
-def verbVectorComputation(verbs):
-    def  traitment1(a):
-        return (a[1])
-    return np.average( np.array( list(map(traitment1,verbs )) ),0)
+    temp = meetingTime( Meeting,begin,end )
+    return typeVectorComputation(freqtypeExtractor(peopleInMeeting,temp))
+
+def getAllMeetingsTypeVector(dss):
+    l = []
+    for i in dss.keys():
+        l.append((i ,getMeetingTypeVector(dss[i]['meeting']) ))
+    
+    return l
+        
+    
+    
+    
+    
+
+def getMeetingVerbVectors(idfVerb, Meeting , begin = 0, end = 60 * 45):
+    temp = meetingTime( Meeting,begin,end )
+    verbs = docToVerb(peopleInMeeting,temp)
+    verb = { }
+    for v in verbs:
+        if v[0] in verb.keys():
+            verb[v[0]][0] +=1
+        else:
+            verb[v[0]]=[1,v[1]]
+    return verbVectorComputationTFIDF(verb,idfVerb)
+
+def getAllMeetingsVerbVector(dss):
+    idf = getVerbIDFCorpus(dss)
+    l = []
+    for i in dss.keys():
+        l.append((idf ,getMeetingVerbVectors(idf,dss[i]['meeting']) ))
+    return l
+    
+
+
+    
+def getMeetinglemmeVectorTFIDF():
+    """TODO"""
+    return 1
+
+
+
+
+
+
 
 def peopleVectorExtraction(peoples,dss,vectorName):
     res = []
     for m in dss.keys(): 
         for i in peoples[m]:
-            res.append((str(m) + str (i),dss[m][vectorName][i]))
+            res.append((str(m+i),dss[m][vectorName][i]))
     return res
+
+    
  
 def similarityPeople(pv):
     res = []
@@ -334,6 +503,24 @@ def similarityPeopleClassic(pv):
         for pos2 in range (pos + 1,len(pv)):
             res.append((pv[pos][0],pv[pos2][0], Manhattan(pv[pos][1],pv[pos2][1])))
     return res                                
+
+
+""" Apprentissage"""
+
+
+def clustering(pv):
+    vect = []
+    p = []
+    for i in pv:
+        vect.append(i[1])
+        p.append(i[0])
+    k = KMeans().fit(np.array(vect))
+    lab = k.labels_
+    for i in range (0,7):
+        print(i)
+        for j in range(0,len(p)):
+            if (lab[j] == i):
+                print(p[j])
 
 
 """apprentisage debut fin"""
@@ -371,19 +558,7 @@ def dssToTrainCorpusDebutFin(dssList,size):
     return x1,x2,y
 
 
-def multipleDSS():
-    meetings = ['a','b','c','d']
-    submeet1 = ["IS1000","IS1001","IS1002"]
-    BigM = []
-    for i in range (0,10):
-        BigM.append(IS100 +str(i))
-        
-    submeet = ["IS1000","IS1001","IS1002","IS1003","IS1004","IS1005","IS1006","IS1007","IS1008","IS1009"]
-    dssl= []
-    for i in submeet:
-        print(i)
-        dssl.append(docSpacySentPretraitement(meetings,i))
-    return dssl
+
 
 def testFin():
     d = multipleDSS()
@@ -405,11 +580,11 @@ def testFin():
     print(accuracy_score(y_test, y_predict))
 
                     
-    
+"""    
     
 testFin()    
 
-""" 
+ 
     
 print("begin", 0.0)   
 
