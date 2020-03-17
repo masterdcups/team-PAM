@@ -18,10 +18,17 @@ from sklearn.cluster import KMeans
 
 
 import buildSenten as build
-
+import peopleType as meetingRoles
 
 nlp = spacy.load("en_core_web_lg") 
 peopleInMeeting = ['A','B','C','D']
+submeet = ["IS1000","IS1001","IS1002","IS1003","IS1004","IS1005",
+           "IS1006","IS1007","IS1008","IS1009"]
+
+submeet2 = ["IS1000","IS1001","IS1002","IS1003","IS1004","IS1005",
+           "IS1006","IS1007","IS1008","IS1009",
+           "ES2002","ES2003","ES2004","ES2005",
+           "ES2006","ES2007","ES2008","ES2009", "ES2010","ES2011"]
 
 def similarity1(v1,v2):
     return (dot(v1, v2)/(norm(v1)*norm(v2)))
@@ -173,28 +180,33 @@ def speakerName(peoples:list,speach:list)-> list:
 """ verb features """
     
 def docToVerb(peoples:list,speach:list)-> list:
-    res = []
+    verbs = []
     for elem in speach:
         if elem[0] in peoples:
             for word in elem[3]:
                 if word.dep_ in ['ROOT','ccomp'] and word.pos_ == 'VERB':
-                    res.append((word.lemma_,word.vector))
+                    verbs.append((word.lemma_,word.vector))
                 
-    return res 
+    verb = { }
+    for v in verbs:
+        if v[0] in verb.keys():
+            verb[v[0]][0] +=1
+        else:
+            verb[v[0]]=[1,v[1]]
+    return verb
 
 
 """Verb"""
+    
+    
+
+
 def addPeoplesVerbToDSS(peoples,dss):
     for m in dss.keys(): 
         dss[m]["verb"] = { }
         for i in peoples[m]:
             r = docToVerb([i], dss[m]["meeting"])
-            dss[m]["verb"][i] = { }
-            for v in r:
-                if v[0] in dss[m]["verb"][i].keys():
-                    dss[m]["verb"][i][v[0]][0] +=1
-                else:
-                    dss[m]["verb"][i][v[0]]=[1,v[1]]                   
+            dss[m]["verb"][i] = r                 
     return dss
 
 def getVerbIDFCorpus(dss):
@@ -307,69 +319,8 @@ def getCorpusDictionary(dss):
 
 
 
-"""Corpus Generator"""
 
-def preparationTokenSpCy(totalSpeachGr):
-    def  traitment1(a):
-        return (a[0],a[1],a[2], nlp(a[3]))
-    return list(map(traitment1,totalSpeachGr ))  
-
-"""old, only for one meeting, prefer multipleDSS in any case"""
-def docSpacySentPretraitement(subMeetings,meeting = ""):
-    res = { }
-    for sm in subMeetings:
-        try:
-            
-            if meeting == "":
-                orgSpeachT = build.organisedSpeachTotalPipe(sm)
-            else:
-                orgSpeachT = build.organisedSpeachTotalPipe(sm, meeting)
-            res[sm] = { }
-            res[sm]["meeting"] = preparationTokenSpCy(orgSpeachT)
-        except OSError:
-            print("erreur lors du chargement de " +meeting+ " " + sm )
-        except TypeError:
-            print("erreur lors du chargement de " +meeting+ " " + sm )
-    return res
-
-def AddNewMeeting(dss,meeting,subMeetings):
-    if meeting in (dss.keys()):
-        print("allready in",meeting  )
-    else:
-        for subMeeting in subMeetings:
-            name = meeting + "_" +subMeeting
-            try:
-                orgSpeachT = build.organisedSpeachTotalPipe(subMeeting, meeting)
-                dss[name] = { }
-                dss[name]["meeting"] = preparationTokenSpCy(orgSpeachT)
-            except OSError:
-                print("erreur lors du chargement de " + name )
-            except TypeError:
-                print("erreur lors du chargement de " + name )
-    return dss
-
-def  multipleDSS(subMeetings = ['a','b','c','d'],meetings = ["IS1000","IS1001","IS1002"]):
-    dss = { }
-        
-    """submeet = ["IS1000","IS1001","IS1002","IS1003","IS1004","IS1005","IS1006","IS1007","IS1008","IS1009"]"""
-    for i in meetings:
-        print(i)
-        AddNewMeeting(dss, i,subMeetings)
-    return dss
-
-def peoplesgenerator(dss):
-    l = { }
-    for i in dss.keys():
-        l[i] = peopleInMeeting
-    return l
-
-
-def AddAll(dss):
-    pp = peoplesgenerator(dss)
-    addFreqToDSS(pp,dss)
-    addPeoplesVerbToDSS(pp,dss)
-    addVerbVectorToDSS(pp,dss)
-    addDictionaries(dss)
+    
         
 
 
@@ -453,31 +404,16 @@ def getAllMeetingsTypeVector(dss):
 def getMeetingVerbVectors(idfVerb, Meeting , begin = 0, end = 60 * 45):
     temp = meetingTime( Meeting,begin,end )
     verbs = docToVerb(peopleInMeeting,temp)
-    verb = { }
-    for v in verbs:
-        if v[0] in verb.keys():
-            verb[v[0]][0] +=1
-        else:
-            verb[v[0]]=[1,v[1]]
-    return verbVectorComputationTFIDF(verb,idfVerb)
+
+    return verbVectorComputationTFIDF(verbs,idfVerb)
 
 def getAllMeetingsVerbVector(dss):
     idf = getVerbIDFCorpus(dss)
     l = []
     for i in dss.keys():
-        l.append((idf ,getMeetingVerbVectors(idf,dss[i]['meeting']) ))
+        l.append((i ,getMeetingVerbVectors(idf,dss[i]['meeting']) ))
     return l
     
-
-
-    
-def getMeetinglemmeVectorTFIDF():
-    """TODO"""
-    return 1
-
-
-
-
 
 
 
@@ -523,29 +459,33 @@ def clustering(pv):
                 print(p[j])
 
 
+
+
+
 """apprentisage debut fin"""
-def dssToTrainCorpusDebutFin(dssList,size):
+
+
+def dssToTrainCorpusDebutFin2(dss,size):
     part = []
     x1= []
     x2=[]
     y= []
     """extraction des parties"""
-    for v0 in dssList:
-        for k1, v1 in v0.items():
-            c = { }
-            for k in v1['meeting']:
-                space = c.get(int(k[1]/size),[])
-                space.append(k)
-                c[int(k[1]/size)]= space
-            deb = min(c.keys())
-            fin = max(c.keys())
-            for k3,v3 in c.items():
-                if deb == k3:
-                    part.append((1,v3))
-                elif fin == k3:
-                    part.append((2,v3))
-                else:
-                    part.append((0,v3))
+    for k1, v1 in dss.items():
+        c = { }
+        for k in v1['meeting']:
+            space = c.get(int(k[1]/size),[])
+            space.append(k)
+            c[int(k[1]/size)]= space
+        deb = min(c.keys())
+        fin = max(c.keys())
+        for k3,v3 in c.items():
+            if deb == k3:
+                part.append((1,v3))
+            elif fin == k3:
+                part.append((2,v3))
+            else:
+                part.append((0,v3))
     
     for p in part:
         vect1 = typeVectorComputation( freqtypeExtractor(['A','B','C','D'],p[1]))
@@ -557,12 +497,38 @@ def dssToTrainCorpusDebutFin(dssList,size):
     
     return x1,x2,y
 
+def dssToTrainCorpusRole(dss):
+    def lToDict(l):
+        d = { }
+        for e in l:
+            d[e[0]]= e[1]
+        return d
+    
+    role = meetingRoles.AllRoles()
+    pp = peoplesgenerator(dss)
+    pVV = lToDict(peopleVectorExtraction(pp,dss,'verbVector'))
+    pTV = lToDict(peopleVectorExtraction(pp,dss,'typeVector'))
+    
+    
+    x1= []
+    x2=[]
+    y= []
+
+    
+    for p in pVV.keys():
+        x1.append(pTV[p])
+        x2.append(pVV[p])
+        y.append(role[p])
+                  
+    
+    return x1,x2,y
 
 
 
-def testFin():
-    d = multipleDSS()
-    x1,x2,y = dssToTrainCorpusDebutFin(d,5*60)
+
+
+def testFin(dss):
+    x1,x2,y = dssToTrainCorpusDebutFin2(dss,5*60)
     print("type freq")
     X_train, X_test, y_train, y_test = train_test_split(x1, y, test_size=0.3, random_state=42)
     model = RandomForestClassifier(class_weight={1:0.15,2:0.15,0:0.7})
@@ -570,6 +536,7 @@ def testFin():
     y_predict = model.predict(X_test)
     
     print(accuracy_score(y_test, y_predict))
+    st = accuracy_score(y_test, y_predict)
     
     print("verb")
     X_train, X_test, y_train, y_test = train_test_split(x1, y, test_size=0.3, random_state=42)
@@ -578,6 +545,126 @@ def testFin():
     y_predict = model.predict(X_test)
     
     print(accuracy_score(y_test, y_predict))
+    return(st,accuracy_score(y_test, y_predict))
+    
+def testRole(dss):
+    x1,x2,y = dssToTrainCorpusRole(dss)
+    
+    print("type freq")
+    X_train, X_test, y_train, y_test = train_test_split(x1, y, test_size=0.3, random_state=42)
+    model = RandomForestClassifier()
+    model.fit(X_train, y_train)
+    y_predict = model.predict(X_test)
+    
+    print(accuracy_score(y_test, y_predict))
+    st = accuracy_score(y_test, y_predict)
+    
+    print("verb")
+    X_train, X_test, y_train, y_test = train_test_split(x1, y, test_size=0.3, random_state=42)
+    model = RandomForestClassifier()
+    model.fit(X_train, y_train)
+    y_predict = model.predict(X_test)
+    
+    print(accuracy_score(y_test, y_predict))
+    return(st,accuracy_score(y_test, y_predict))
+
+
+
+def multipleTimeTest(dss, nb = 10):
+    roleVerb = []
+    roleType = []
+    begVerb = []
+    begType = []
+    for i in range (0,nb):
+        t,v = testRole(dss)
+        roleType.append(t)
+        roleVerb.append(v)
+        
+        t,v = testFin(dss)
+        begType.append(t)
+        begVerb.append(v)
+    return(roleType,roleVerb,begType,begVerb) 
+        
+        
+    
+    
+    
+    
+    
+"""Corpus Generator"""
+
+def preparationTokenSpCy(totalSpeachGr):
+    def  traitment1(a):
+        return (a[0],a[1],a[2], nlp(a[3]))
+    return list(map(traitment1,totalSpeachGr ))  
+
+"""old, only for one meeting, prefer multipleDSS in any case"""
+def docSpacySentPretraitement(subMeetings,meeting = ""):
+    res = { }
+    for sm in subMeetings:
+        try:
+            
+            if meeting == "":
+                orgSpeachT = build.organisedSpeachTotalPipe(sm)
+            else:
+                orgSpeachT = build.organisedSpeachTotalPipe(sm, meeting)
+            res[sm] = { }
+            res[sm]["meeting"] = preparationTokenSpCy(orgSpeachT)
+        except OSError:
+            print("erreur lors du chargement de " +meeting+ " " + sm )
+        except TypeError:
+            print("erreur lors du chargement de " +meeting+ " " + sm )
+    return res
+
+def AddNewMeeting(dss,meeting,subMeetings):
+    if meeting in (dss.keys()):
+        print("allready in",meeting  )
+    else:
+        for subMeeting in subMeetings:
+            name = meeting + subMeeting
+            try:
+                orgSpeachT = build.organisedSpeachTotalPipe(subMeeting, meeting)
+                dss[name] = { }
+                dss[name]["meeting"] = preparationTokenSpCy(orgSpeachT)
+            except OSError:
+                print("erreur lors du chargement de " + name )
+            except TypeError:
+                print("erreur lors du chargement de " + name )
+    return dss
+
+def  multipleDSS(subMeetings = ['a','b','c','d'],meetings = ["IS1000","IS1001","IS1002"]):
+    dss = { }
+        
+    
+    for i in meetings:
+        print(i)
+        AddNewMeeting(dss, i,subMeetings)
+    return dss
+
+def peoplesgenerator(dss):
+    l = { }
+    for i in dss.keys():
+        l[i] = peopleInMeeting
+    return l
+
+
+def AddAll(dss):
+    pp = peoplesgenerator(dss)
+    addFreqToDSS(pp,dss)
+    addfreqTypeVectorToDSS(pp,dss)
+    addPeoplesVerbToDSS(pp,dss)
+    addVerbVectorToDSS(pp,dss)
+    addDictionaries(dss)    
+    
+    
+def moncorpustest(meets):
+    d = multipleDSS(['a','b','c','d'],meets)
+    AddAll(d)
+    return( d)
+
+    
+    
+
 
                     
 """    
